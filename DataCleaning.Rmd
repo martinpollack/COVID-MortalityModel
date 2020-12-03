@@ -5,6 +5,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
 ```
 
 ## Read in data: 
@@ -15,7 +16,15 @@ dim(mexico)
 
 ## Restrict to 18-85 Year olds who are citizens of Mexico
 ```{r}
-data <- filter(mexicoOct31, EDAD >= 18 & EDAD <=85, NACIONALIDAD == 1)
+names(mexico)
+data <- filter(mexico, CLASIFICACION_FINAL == 3, EDAD >= 18 & EDAD <=85, NACIONALIDAD == 1)
+data <- select(data, c("FECHA_DEF", "NEUMONIA","INTUBADO", "SEXO", "EDAD","INDIGENA", "DIABETES", "EPOC", "ASMA", "INMUSUPR", "HIPERTENSION", "OTRA_COM","CARDIOVASCULAR", "OBESIDAD", "RENAL_CRONICA", "TABAQUISMO"))
 ```
 
+## Make all 97, 98, 99 equal NA
+
+```{r}
+
+
+```
 
