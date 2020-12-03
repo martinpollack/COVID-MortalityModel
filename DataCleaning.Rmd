@@ -7,4 +7,15 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-1+1
+## Read in data: 
+```{r}
+mexico <- read.csv("/Users/sarinakopf/Downloads/Mexico.csv")
+dim(mexico)
+```
+
+## Restrict to 18-85 Year olds who are citizens of Mexico
+```{r}
+data <- filter(mexicoOct31, EDAD >= 18 & EDAD <=85, NACIONALIDAD == 1)
+```
+
+
