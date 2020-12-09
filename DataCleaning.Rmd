@@ -235,6 +235,20 @@ dim(training)
 dim(testing)
 ```
 
+## Dataset with only people who responded NA at least once 
+
+```{r}
+na.Dataset <- data[which(count.na > 0), ]
+```
+
+What should we do with this? 
+- Are we seeing if, within this dataset, variables are highly correlated with eachother? 
+- Or if this dataset is significantly different than our overall dataset?
+
+## Do list: 
+1. Ask her what she means about examining subdataset
+2. Begin process of model-building (look at residual plots!)
+
 ## Questions: 
 
 1. We should exclude any patient who responded NA to ANY explanatory variable, right?
