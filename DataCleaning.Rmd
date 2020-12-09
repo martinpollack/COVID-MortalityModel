@@ -1,11 +1,14 @@
 ---
 title: "Data Cleaning"
-output: html_document
+output:
+  word_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(dplyr)
+library(caret)
 ```
 
 ## Read in data: 
@@ -21,9 +24,224 @@ data <- filter(mexico, CLASIFICACION_FINAL == 3, EDAD >= 18 & EDAD <=85, NACIONA
 data <- select(data, c("FECHA_DEF", "NEUMONIA","INTUBADO", "SEXO", "EDAD","INDIGENA", "DIABETES", "EPOC", "ASMA", "INMUSUPR", "HIPERTENSION", "OTRA_COM","CARDIOVASCULAR", "OBESIDAD", "RENAL_CRONICA", "TABAQUISMO"))
 ```
 
+## Rename columns to english
+```{r}
+names(data)
+colnames(data) <- c("DATE_DEATH", "PNEUMONIA", "INTUBATED", "SEX", "AGE", "INDIGENOUS", "DIABETES", "COPD", "ASTHMA", "IMMUNOSUPR", "HYPERTENSION", "OTHER_DIS", "CARDIOVASCULAR", "OBESITY", "CHRONIC_KIDNEY", "SMOKE")
+```
+
+
 ## Make all 97, 98, 99 equal NA
+```{r}
+##### Pneumonia 
+# table(data$PNEUMONIA)
+#      1      2     99 
+# 169718 863127      9 
+data$PNEUMONIA <-  case_when(data$PNEUMONIA == 2 ~ 0, 
+                             data$PNEUMONIA == 1 ~ 1, 
+                             data$PNEUMONIA == 99 ~ NA_real_)
+# table(data$PNEUMONIA)
+#      0      1 
+# 863127 169718 
+
+##### Intubated 
+# table(data$INTUBATED)
+#      1      2     97     99 
+#  34897 187280 810087    590 
+data$INTUBATED <- case_when(data$INTUBATED == 2 ~ 0, 
+                            data$INTUBATED == 1 ~ 1, 
+                            data$INTUBATED == 97 ~ NA_real_, 
+                            data$INTUBATED == 99 ~ NA_real_)
+# table(data$INTUBATED)
+#      0      1 
+# 187280  34897 
+
+##### Sex
+# table(data$SEX)
+#      1      2 
+# 506915 525939 
+
+data$SEX <- case_when(data$SEX == 2 ~ 0, 
+                      data$SEX == 1 ~ 1)
+# table(data$SEX)
+#      0      1 
+# 525939 506915 
+
+##### Indigenous
+# table(data$INDIGENOUS)
+#      1      2     99 
+#  10839 988217  33798 
+data$INDIGENOUS <- case_when(data$INDIGENOUS == 2 ~ 0, 
+                             data$INDIGENOUS == 1 ~ 1, 
+                             data$INDIGENOUS == 99 ~ NA_real_)
+# table(data$INDIGENOUS)
+#      0      1 
+# 988217  10839 
+
+##### Diabetes
+# table(data$DIABETES)
+#      1      2     98 
+# 154788 874829   3237 
+
+data$DIABETES <- case_when(data$DIABETES == 1 ~ 1,
+                           data$DIABETES == 2 ~ 0, 
+                           data$DIABETES == 98 ~ NA_real_)
+# table(data$DIABETES)
+#      0      1 
+# 874829 154788 
+
+##### COPD
+# table(data$COPD)
+#     1       2      98 
+# 13137 1016784    2933 
+
+data$COPD <- case_when(data$COPD == 1 ~ 1, 
+                       data$COPD == 2 ~ 0, 
+                       data$COPD == 98 ~ NA_real_)
+# table(data$COPD)
+#       0       1 
+# 1016784   13137 
+
+##### Asthma 
+
+# table(data$ASTHMA)
+#       1       2      98 
+#   25442 1004514    2898 
+
+data$ASTHMA <- case_when(data$ASTHMA == 1 ~ 1, 
+                         data$ASTHMA == 2 ~ 0,
+                         data$ASTHMA == 98 ~ NA_real_)
+# table(data$ASTHMA)
+#       0       1 
+# 1004514   25442 
+
+##### Immunosuppression 
+# table(data$IMMUNOSUPR)
+#       1       2      98 
+#   10090 1019713    3051 
+
+data$IMMUNOSUPR <- case_when(data$IMMUNOSUPR == 1 ~ 1, 
+                             data$IMMUNOSUPR == 2 ~ 0, 
+                             data$IMMUNOSUPR == 98 ~ NA_real_)
+# table(data$IMMUNOSUPR)
+#       0       1 
+# 1019713   10090 
+
+##### Hypertension
+# table(data$HYPERTENSION)
+#      1      2     98 
+# 195826 833975   3053 
+data$HYPERTENSION <- case_when(data$HYPERTENSION == 1 ~ 1, 
+                               data$HYPERTENSION == 2 ~ 0, 
+                               data$HYPERTENSION == 98 ~ NA_real_)
+# table(data$HYPERTENSION)
+#      0      1 
+# 833975 195826 
+
+##### Other Diseases 
+
+# table(data$OTHER_DIS)
+#       1       2      98 
+#   23026 1004758    5070 
+
+data$OTHER_DIS <- case_when(data$OTHER_DIS == 2 ~ 0, 
+                            data$OTHER_DIS == 1 ~ 1, 
+                            data$OTHER_DIS == 98 ~ NA_real_)
+
+# table(data$OTHER_DIS)
+#       0       1 
+# 1004758   23026 
+
+##### Cardiovascular
+
+# table(data$CARDIOVASCULAR)
+#       1       2      98 
+#   18396 1011486    2972 
+
+data$CARDIOVASCULAR <- case_when(data$CARDIOVASCULAR == 1 ~ 1, 
+                                 data$CARDIOVASCULAR == 2 ~ 0, 
+                                 data$CARDIOVASCULAR == 98 ~ NA_real_)
+# table(data$CARDIOVASCULAR)
+#       0       1 
+# 1011486   18396 
+
+##### Obesity 
+
+# table(data$OBESITY)
+#      1      2     98 
+# 179465 850450   2939 
+
+data$OBESITY <- case_when(data$OBESITY == 1 ~ 1, 
+                          data$OBESITY == 2 ~ 0, 
+                          data$OBESITY == 98 ~ NA_real_)
+# table(data$OBESITY)
+#      0      1 
+# 850450 179465 
+
+##### Chronic kidney failure
+
+# table(data$CHRONIC_KIDNEY)
+#       1       2      98 
+#   18529 1011396    2929 
+
+data$CHRONIC_KIDNEY <- case_when(data$CHRONIC_KIDNEY == 1 ~ 1, 
+                                 data$CHRONIC_KIDNEY == 2 ~ 0, 
+                                 data$CHRONIC_KIDNEY == 98 ~ NA_real_)
+# table(data$CHRONIC_KIDNEY)
+#       0       1 
+# 1011396   18529 
+
+##### Smoke 
+# table(data$SMOKE)
+#      1      2     98 
+#  78662 951099   3093 
+
+data$SMOKE <- case_when(data$SMOKE == 1 ~ 1, 
+                        data$SMOKE == 2 ~ 0, 
+                        data$SMOKE == 98 ~ NA_real_)
+
+# table(data$SMOKE)
+#      0      1 
+# 951099  78662 
+```
+
+## Add categorical variable for death 
 
 ```{r}
-
-
+data <- mutate(data, DEATH = ifelse(data$DATE_DEATH == "9999-99-99", 0, 1))
+# table(data$DEATH)
+#  0      1 
+# 935831  97023 
 ```
+
+## Look at how many people responded NA to multiple explanatory variables 
+
+```{r}
+findNAdata <- data[-c(2, 3)]
+names(findNAdata)
+is.naData <- apply(findNAdata, MARGIN = 2, is.na)
+count.na <- apply(is.naData, MARGIN = 1, sum)
+table(count.na)
+```
+The large majority of the people who had one NA were people who did not specify whether they were indigenous or not. We should consider excluding this explanatory variable from analysis so as to maintain more numbers in our data. 
+
+## Split data into testing and training set 
+```{r}
+## Split data into 50/50 for testing and training
+inTrain <-  createDataPartition(y = data$DEATH, p = 0.5, list = F)
+training <- data[inTrain, ]
+testing <- data[-inTrain, ]
+dim(training)
+dim(testing)
+```
+
+## Questions: 
+
+1. We should exclude any patient who responded NA to ANY explanatory variable, right?
+2. Can we trust the coefficients that we obtain using a predictive model? Is it just the p-values we can't trust. 
+3. How do we choose best model for a given term number? Smallest residual deviance/largest G-statistic/smallest p-value from LRT? 
+  - How do we do best subsets using interaction terms?
+  - Use best subsets to make best model without interaction terms, then decide what interaction terms to use? 
+4. Is it possible to find residuals for binary data? 
+  - What are the assumptions, and how do we verify that they are indeed met? 
+
