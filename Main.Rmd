@@ -9,12 +9,11 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 library(dplyr)
 library(caret)
-library(pROC)
 ```
 
 ## Read in data: 
 ```{r}
-mexico <- read.csv("/Users/sarinakopf/Downloads/Mexico.csv")
+mexico <- read.csv("~/Documents/STA310/STA310Final/201130COVID19MEXICO.csv")
 dim(mexico)
 ```
 
@@ -263,36 +262,6 @@ summary(reduced)
 
 ## RESIDUALS!!!~~
 ```{r}
-#might as well include all 4 (doensn't simplify model much, doesn't matter in or out)
-full <-  236259
-reduced <- 236299
-
-G <- reduced - full
-df <- 4
-
-1-pchisq(G, 4)
-
-#make interaction model, see how much that changes (use all interactions)
-#after we do it, see how many we can get rid of...
-#Focus on AOC curve, cross validation
-#In addition to drop in deviance test, do measures of fit 
-
-#statquest package 
-#don't look at residual plots 
-#Deviance plots kind of already did that 
-#Focus on what we have here--multiple explanatory variables (MODEL ASSESMENT )
-
-#Essentially same confusion matrix, g statistic, pick smallest 
-#else use 
-#AOC, ROC Curves, threshold values, confusion matrix
-#You want most area under the curve, pick top left value
-#TPP and FPP (true positive/false positive)
-
-#Put people in categories of risk based on age. 
-#Set meeting for Monday, maybe also Friday. Free after 10:30.  make another for 
-
-
-
 devResids <- residuals(reduced, type="deviance")
 pearResids <- residuals(reduced, type="pearson")
 trainPlotData <- mutate(training, "pearson" = pearResids, "deviance" = devResids)
@@ -344,8 +313,8 @@ ggplot(trainPlotData, aes(x = 1:nrow(training), y = pearson)) +
   geom_point(alpha=0.1) +
   labs(title="Residual vs order")
 
-hist(pearResids)
-plot(training$AGE, devResids)
+# Normal Probability Plot
+qqnorm(pearResids)
 
 median(pearResids[training$SEX == 0])
 median(pearResids[training$SEX == 1])
@@ -356,103 +325,14 @@ median(pearResids[training$SEX == 1])
 ```{r}
 roc(response = training$DEATH, predictor=reduced$fitted.values,ci=F, plot=T)
 
-#confusion counts #predict to die versus #actually die (little 2x2 table)
-#they should agree as much as possible 
-#probability > 0.5, maybe try 0.8
-#calculate area under curve for both
-#compare these things for interaction model and new interaction model along with G statistic
-#caret can do all things automatically for us 
-
-#odds of success based on a certain age
-#DEFINETELY can interpret odds ratio with age (graph, survival curve)
-#prob survival, log odds with regression coef. (probability of survival)
-#Pearson residual 
-#could compare by gender 
-#any diease versus no diesase 
-
-# test_prediction <- predict(reduced, testing)
-# roc(response = testing$DEATH, predictor=test_prediction,ci=F, plot=T)
+test_prediction <- predict(reduced, testing)
+roc(response = testing$DEATH, predictor=test_prediction,ci=F, plot=T)
 ```
-
-## Begin! 
-
-```{r}
-interaction_model <- glm(DEATH~(.)^2, "binomial", training)
-summary(interaction_model)
-
-## Drop - in - deviance test
-G <-  full_model$deviance - interaction_model$deviance 
-df <- full_model$df.residual - interaction_model$df.residual
-1 - pchisq(G, df)
-
-## ROC
-roc(response = training$DEATH, predictor=interaction_model$fitted.values,ci=F, plot=T)
-#0.8562
-
-0.05 / (interaction_model$df.null - interaction_model$df.residual)
-
-## Reduced interaction
-#We used a p-value cutoff of 0.0005 for significance (Adjusted Bonferroni)
-interaction_reduced <- glm(data = training, DEATH ~ SEX + AGE + INDIGENOUS + DIABETES + COPD + ASTHMA + IMMUNOSUPR + HYPERTENSION + OTHER_DIS + CARDIOVASCULAR + OBESITY + CHRONIC_KIDNEY + SMOKE + SEX:AGE + SEX:DIABETES + SEX:HYPERTENSION + SEX:CHRONIC_KIDNEY + SEX:SMOKE + AGE:INDIGENOUS + AGE:DIABETES + AGE:COPD + AGE:IMMUNOSUPR + AGE:HYPERTENSION + AGE:OTHER_DIS + AGE:CARDIOVASCULAR + AGE:OBESITY + AGE:CHRONIC_KIDNEY + AGE:SMOKE + DIABETES:OBESITY + IMMUNOSUPR:CHRONIC_KIDNEY + HYPERTENSION:OBESITY + OTHER_DIS:OBESITY , family = "binomial")
-
-summary(interaction_reduced)
-
-#Drop in deviance compared to no interactions 
-G <-  full_model$deviance - interaction_reduced$deviance
-df <- full_model$df.residual - interaction_reduced$df.residual
-1 - pchisq(G, df)
-
-
-#Drop in deviance compared to ALL interactions
-G <-  interaction_reduced$deviance - interaction_model$deviance
-df <- interaction_reduced$df.residual - interaction_model$df.residual
-1 - pchisq(G, df)
-
-#at least one of interactions we took out is significant 
-
-roc(response = training$DEATH, predictor=interaction_reduced$fitted.values,ci=F, plot=T)
-#0.8559
-
-#0.8538 Original Full model with no interaction terms! 
-```
-
-
-## PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS (everybody!)
-
-```{r}
-
-Fits <- mutate(training, fit = interaction_reduced$fitted.values)
-
-ggplot(data = Fits) +
-  geom_line(aes(x = AGE, y = fit, color = as.factor(SEX)))
-
-#We are going to have to do plots FOR things. FOR people with obesity...what happens.... (etc)
-#As simple as possible
-#Choosing some value for everything else, then go from there 
-
-```
-
-
-
-
-
-
 
 ## Questions: 
 
 1. Everything significant at 0.05 level except CARDIOVASCULAR. Should we just take this one out, or the four out that didn't have extremely tiny p-values (i.e. CARDIOVASCULAR, ASTHMA, INDIGENOUS, SMOKE), or take out even more variables?
 2. We have so many significant p-values. But is this just because we have a huge sample size, so our SEs are small? Would we overfit the model by including all but the four mentioned above?
 3. Our residuals tend to be heavily right-skewed. This means that there are a lot more people who died that we didn't expect to die compared to people who survived that we didn't expect to survive. Does this mean that assumptions are violated? How do we fix this?
-
-
-## DO list: 
-
-1. Model with HELLLAAAAAAAAAAAA interaction terms. Use all terms :( 
-2. See if we can take some out 
-3. Compare AOC, G statistic, see if improvement is significant. 
-4. Find smallest possible model that gives us similar AOC, G-statistic 
-5. Once we have our model, do fun stuff! Plot age versus prob survival
-  - Odds ratio/Probability changes with different explanatory variables 
-
-
+4.
 
