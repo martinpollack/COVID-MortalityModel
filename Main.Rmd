@@ -20,7 +20,6 @@ dim(mexico)
 
 ## Restrict to 18-85 Year olds who are citizens of Mexico, only keep necessary columns
 ```{r}
-names(mexico)
 data <- filter(mexico, CLASIFICACION_FINAL == 3, EDAD >= 18 & EDAD <=85, NACIONALIDAD == 1)
 
 data <- select(data, c("FECHA_DEF", "SEXO", "EDAD","INDIGENA", "DIABETES", "EPOC", "ASMA", "INMUSUPR", "HIPERTENSION", "OTRA_COM","CARDIOVASCULAR", "OBESIDAD", "RENAL_CRONICA", "TABAQUISMO"))
@@ -46,6 +45,7 @@ for (i in 2:14) {
 
 # Change response variable
 data$DEATH <- ifelse(data$DATE_DEATH == "9999-99-99", 0, 1)
+data <- data[,-1]
 ```
 
 ## Look at how many NA observations each unit has, use it to create NA/complete-observations datasets
@@ -128,13 +128,13 @@ interaction_reduced <- glm(data = training, DEATH ~ SEX + AGE + INDIGENOUS + DIA
 
 # summary(interaction_reduced)
 
-#Drop in deviance compared to no interactions 
+#Drop in deviance of interaction reduced compared to no interactions 
 G <-  all_nointeractions$deviance - interaction_reduced$deviance
 df <- all_nointeractions$df.residual - interaction_reduced$df.residual
 1 - pchisq(G, df)
 
 
-#Drop in deviance compared to ALL interactions
+#Drop in deviance of interaction reduced compared to ALL interactions
 G <-  interaction_reduced$deviance - all_winteraction$deviance
 df <- interaction_reduced$df.residual - all_winteraction$df.residual
 1 - pchisq(G, df)
@@ -155,6 +155,15 @@ roc_interaction_reduced <- roc(response = training$DEATH, predictor=interaction_
 
 ## CONFUSION MATRICES
 ```{r}
+#make confusion matrix for no interaction model using ideal threshold
+predicted_all_nointeraction <- ifelse(all_nointeractions$fitted.values > 0.083, 1, 0)
+table(predicted_all_nointeraction, training$DEATH)
+
+# accuracy for reduced interaction
+(339808+37886) / nrow(training)
+
+
+
 #make confusion matrix for reduced interaction model using ideal threshold
 predicted_interaction_reduced <- ifelse(interaction_reduced$fitted.values > 0.091, 1, 0)
 table(predicted_interaction_reduced, training$DEATH)
@@ -176,18 +185,39 @@ table(predicted_all_winteraction, training$DEATH)
 ## PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS (everybody!)
 
 ```{r}
+summary(interaction_reduced)
 
-Fits <- mutate(training, fit = interaction_reduced$fitted.values)
+plot_categorical <- function(variable) {
+  plot_data <- expand.grid(AGE = 18:85, SEX=0:1, indicator_variable=0:1)
+  
+  coefficient <- summary(interaction_reduced)$coefficients[variable,1]
+  
+  sex_interaction <- variable %in% c("DIABETES", "HYPERTENSION", "CHRONIC_KIDNEY", "SMOKE")
+  
+  age_interaction <- variable %in% c("INDIGENOUS", "DIABETES", "COPD", "IMMUNOSUPR", "HYPERTENSION", "OTHER_DIS", "CARDIOVASCULAR", "OBESITY", "CHRONIC_KIDNEY", "SMOKE")
+  
+  if (sex_interaction) {
+    sex_interaction <- summary(interaction_reduced)$coefficients[paste("SEX:", variable, sep = ""),1]
+  }
+  
+  if (age_interaction) {
+    age_interaction <- summary(interaction_reduced)$coefficients[paste("AGE:", variable, sep = ""),1]
+  }
 
-ggplot(data = Fits) +
-  geom_line(aes(x = AGE, y = fit, color = as.factor(SEX)))
+  plot_data <- mutate(plot_data, 
+                      Probability_Death =
+                        exp(-7.0919880-1.1649522*SEX+0.0888716*AGE+coefficient*indicator_variable+0.0072930*SEX*AGE+sex_interaction*SEX*indicator_variable+age_interaction*AGE*indicator_variable) / (1+exp(-7.0919880-1.1649522*SEX+0.0888716*AGE+coefficient*indicator_variable+0.0072930*SEX*AGE+sex_interaction*SEX*indicator_variable+age_interaction*AGE*indicator_variable)))
 
-#We are going to have to do plots FOR things. FOR people with obesity...what happens.... (etc)
-#As simple as possible
-#Choosing some value for everything else, then go from there 
+  print(ggplot(plot_data, aes(x=AGE, y=Probability_Death, color=as.factor(SEX))) +
+  geom_line(aes(linetype=as.factor(plot_data$indicator_variable))) +
+    geom_hline(yintercept = 0.091)+
+  labs(color="Sex", linetype=variable))
+}
 
+for (col in colnames(training)[3:13]) {
+  plot_categorical(col)
+}
 ```
-
 
 
 
@@ -197,8 +227,11 @@ predicted_testing <- predict(interaction_reduced, newdata = testing, type = "res
 
 roc_testing <- roc(response = testing$DEATH, predictor=predicted_testing,ci=F, plot=T, print.thres=T, print.auc=T)
 
-predicted_testing_bestcutoff <- ifelse(predicted_testing > 0.091, 1, 0)
+predicted_testing_bestcutoff <- ifelse(predicted_testing > 0.084, 1, 0)
 table(predicted_testing_bestcutoff, testing$DEATH)
+
+# accuracy
+(325363+39456) / nrow(testing)
 
 kappa_testing <- ( (331514+38776) / nrow(testing) - ( (331514+117818)*(331514+8123) + (8123+38776)*(117818+38776) ) / nrow(testing)^2) / ( 1 - ( (331514+117818)*(331514+8123) + (8123+38776)*(117818+38776) ) / nrow(testing)^2)
 ```
