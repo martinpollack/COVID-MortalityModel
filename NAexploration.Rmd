@@ -1,0 +1,95 @@
+---
+title: "Exploratory"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+install.packages("graphics")
+library(graphics)
+library(dplyr)
+```
+
+
+## Read in data: 
+```{r}
+mexico <- read.csv("/Users/sarinakopf/Downloads/Mexico.csv")
+dim(mexico)
+```
+
+## Examples: 
+
+```{r, echo = F}
+make.table <- function(col){
+  colnum <- which(names(na.Dataset) == col)
+  df <- rbind(table(na.Dataset[,colnum], useNA = "always"),table(full.dataset[,colnum], useNA = "always"))
+  rownames(df) <-  c("NA", "Complete")
+  colnames(df) <- c(paste(col, ".", "0", sep = ""), paste(col, ".", "1", sep = ""), "NA")
+  total <- df[,1] + df[,2]
+  df <- cbind(df, total)
+  prop0 <- df[,1] / df[,4]
+  df <- cbind(df, prop0)
+  return(df)
+}
+
+make.table2 <- function(col){
+  colnum <- which(names(na.Dataset) == col)
+  df <- rbind(table(data[,colnum], useNA = "always"),table(full.dataset[,colnum], useNA = "always"))
+  rownames(df) <-  c("NA", "Complete")
+  colnames(df) <- c(paste(col, ".", "0", sep = ""), paste(col, ".", "1", sep = ""), "NA")
+  total <- df[,1] + df[,2]
+  df <- cbind(df, total)
+  prop0 <- df[,1] / df[,4]
+  df <- cbind(df, prop0)
+  return(df)
+  }
+
+nameData <- names(na.Dataset)[-c(1, 5)]
+
+for (n in nameData){
+  print(make.table2(n))
+}
+
+ df <- rbind(table(na.Dataset[,"AGE"], useNA = "always"),table(full.dataset[,"AGE"], useNA = "always"))
+ df[1,] <- round(df[1,]  /sum(df[1,]), 4)
+ df[2,] <- round(df[2,]  /sum(df[2,]), 4)
+ df
+make.table("DEATH")
+
+ ageNA <- group_by(na.Dataset, AGE)
+ ageFull <- group_by(full.dataset, AGE)
+ ageOverall <- group_by(data, AGE)
+ 
+ naSum <- summarize(ageNA, died = sum(DEATH))
+ fullSum <- summarize(ageFull, died = sum(DEATH))
+ overallSum <- summarize(ageOverall, died = sum(DEATH))
+ 
+ naDF <- as.data.frame(table(na.Dataset$AGE))
+ fullDF <- as.data.frame(table(full.dataset$AGE))
+ overallDF <- as.data.frame(table(data$AGE))
+
+ naTotals <- data.frame(naSum, "Total"= naDF$Freq)
+ fullTotals <- data.frame(fullSum, "Total"= fullDF$Freq)
+ overallTotals <- data.frame(overallSum, "Total"= overallDF$Freq)
+ 
+ naTotalF <- mutate(naTotals, proportion = died / Total)
+ fullTotalF <- mutate(fullTotals, proportion = died / Total)
+ overallTotalF <- mutate(overallTotals, proportion = died / Total)
+ 
+ colnames(naTotalF) <- c("AGE", "naDied", "naTotal", "naProp")
+ colnames(fullTotalF) <- c("AGE", "fullDied", "fullTotal", "fullProp")
+ colnames(overallTotalF) <- c("AGE", "overDied", "overTotal", "overProp")
+ 
+ plot_data <- left_join(naTotalF, fullTotalF, by = "AGE")
+ plot_data <- left_join(plot_data, overallTotalF, by = "AGE")
+plot_data
+ ggplot(plot_data) + 
+   geom_line(aes(x = AGE, y = naProp), color = "salmon") + 
+   geom_line(aes(x = AGE, y = fullProp), color = "blue") + 
+   geom_line(aes(x = AGE, y = overProp), color = "green") +
+   ylim(c(0, 1))
+
+plot_data
+
+```
+The proportions for the NA dataset are highly similar to the proportions in the dataset with out any NA responses. We conclude that the NA dataset is representative of the complete dataset and that by removing all rows with NA values for at least one explanatory variable we have attempted to verify that we are not introducing bias. Tried to ensure that we are not introducing bias. From our analysis, very little difference.  
