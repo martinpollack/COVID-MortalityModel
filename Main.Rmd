@@ -14,7 +14,7 @@ library(pROC)
 
 ## Read in data: 
 ```{r}
-mexico <- read.csv("/Users/sarinakopf/Downloads/Mexico.csv")
+mexico <- read.csv("~/Documents/STA310/COVID-MortalityModel/201130COVID19MEXICO.csv")
 dim(mexico)
 ```
 
@@ -254,23 +254,23 @@ dim(testing)
 
 ## MODEL!!!!
 ```{r}
-full_model <- glm(DEATH~., "binomial", training)
-summary(full_model)
+all_nointeractions <- glm(DEATH~., "binomial", training)
+summary(all_nointeractions)
 
-reduced <- glm(DEATH~.-CARDIOVASCULAR-INDIGENOUS-ASTHMA-SMOKE, "binomial", training)
-summary(reduced)
+best_nointeractions <- glm(DEATH~.-CARDIOVASCULAR-INDIGENOUS-ASTHMA-SMOKE, "binomial", training)
+summary(best_nointeractions)
 ```
 
 ## RESIDUALS!!!~~
 ```{r}
 #might as well include all 4 (doensn't simplify model much, doesn't matter in or out)
-full <-  236259
-reduced <- 236299
+full <-  all_nointeractions$deviance
+reduced <- best_nointeractions$deviance
 
 G <- reduced - full
-df <- 4
+df <- best_nointeractions$df.residual - all_nointeractions$df.residual
 
-1-pchisq(G, 4)
+1-pchisq(G, df)
 
 #make interaction model, see how much that changes (use all interactions)
 #after we do it, see how many we can get rid of...
@@ -354,8 +354,10 @@ median(pearResids[training$SEX == 1])
 
 ## ROC
 ```{r}
-roc(response = training$DEATH, predictor=reduced$fitted.values,ci=F, plot=T)
+roc_all_nointeractions <- roc(response = training$DEATH, predictor=all_nointeractions$fitted.values,ci=F, plot=T, print.thres=T, print.auc=T)
 
+data.frame(TP = roc_all_nointeractions$sensitivities, FP = 1 - roc_all_nointeractions$specificities, thresh = roc_all_nointeractions$thresholds)[which(round(roc_all_nointeractions$sensitivities, 3) == 0.826),]
+which(round(roc_all_nointeractions$sensitivities, 3) == 0.826)
 #confusion counts #predict to die versus #actually die (little 2x2 table)
 #they should agree as much as possible 
 #probability > 0.5, maybe try 0.8
@@ -377,12 +379,12 @@ roc(response = training$DEATH, predictor=reduced$fitted.values,ci=F, plot=T)
 ## Begin! 
 
 ```{r}
-interaction_model <- glm(DEATH~(.)^2, "binomial", training)
-summary(interaction_model)
+all_winteraction <- glm(DEATH~(.)^2, "binomial", training)
+# summary(interaction_model)
 
 ## Drop - in - deviance test
-G <-  full_model$deviance - interaction_model$deviance 
-df <- full_model$df.residual - interaction_model$df.residual
+G <-  all_nointeractions$deviance - interaction_model$deviance 
+df <- all_nointeractions$df.residual - interaction_model$df.residual
 1 - pchisq(G, df)
 
 ## ROC
@@ -395,7 +397,7 @@ roc(response = training$DEATH, predictor=interaction_model$fitted.values,ci=F, p
 #We used a p-value cutoff of 0.0005 for significance (Adjusted Bonferroni)
 interaction_reduced <- glm(data = training, DEATH ~ SEX + AGE + INDIGENOUS + DIABETES + COPD + ASTHMA + IMMUNOSUPR + HYPERTENSION + OTHER_DIS + CARDIOVASCULAR + OBESITY + CHRONIC_KIDNEY + SMOKE + SEX:AGE + SEX:DIABETES + SEX:HYPERTENSION + SEX:CHRONIC_KIDNEY + SEX:SMOKE + AGE:INDIGENOUS + AGE:DIABETES + AGE:COPD + AGE:IMMUNOSUPR + AGE:HYPERTENSION + AGE:OTHER_DIS + AGE:CARDIOVASCULAR + AGE:OBESITY + AGE:CHRONIC_KIDNEY + AGE:SMOKE + DIABETES:OBESITY + IMMUNOSUPR:CHRONIC_KIDNEY + HYPERTENSION:OBESITY + OTHER_DIS:OBESITY , family = "binomial")
 
-summary(interaction_reduced)
+# summary(interaction_reduced)
 
 #Drop in deviance compared to no interactions 
 G <-  full_model$deviance - interaction_reduced$deviance
@@ -410,10 +412,22 @@ df <- interaction_reduced$df.residual - interaction_model$df.residual
 
 #at least one of interactions we took out is significant 
 
-roc(response = training$DEATH, predictor=interaction_reduced$fitted.values,ci=F, plot=T)
+roc_interaction_reduced <- roc(response = training$DEATH, predictor=interaction_reduced$fitted.values,ci=F, plot=T, print.thres=T, print.auc=T)
+
+data.frame(TP = roc_interaction_reduced$sensitivities, FP = 1 - roc_all_nointeractions$specificities, thresh = roc_all_nointeractions$thresholds)[which(round(roc_all_nointeractions$sensitivities, 3) == 0.826),]
+which(round(roc_all_nointeractions$sensitivities, 3) == 0.826)
 #0.8559
 
 #0.8538 Original Full model with no interaction terms! 
+```
+
+## CONFUSION MATRICES
+```{r}
+predicted_interaction_reduced_bestcutoff <- ifelse(interaction_reduced$fitted.values > 0.091, 1, 0)
+table(predicted_interaction_reduced_bestcutoff, training$DEATH)
+
+predicted_interaction_reduced_halfcutoff <- ifelse(interaction_reduced$fitted.values > 0.5, 1, 0)
+table(predicted_interaction_reduced_halfcutoff, training$DEATH)
 ```
 
 
@@ -435,7 +449,17 @@ ggplot(data = Fits) +
 
 
 
+## Evaluating fit for testing data set
+```{r}
+predicted_testing <- predict(interaction_reduced, newdata = testing, type = "response")
 
+roc_testing <- roc(response = testing$DEATH, predictor=predicted_testing,ci=F, plot=T, print.thres=T, print.auc=T)
+
+predicted_testing_bestcutoff <- ifelse(predicted_testing > 0.091, 1, 0)
+table(predicted_testing_bestcutoff, testing$DEATH)
+
+kappa_testing <- ( (331514+38776) / nrow(testing) - ( (331514+117818)*(331514+8123) + (8123+38776)*(117818+38776) ) / nrow(testing)^2) / ( 1 - ( (331514+117818)*(331514+8123) + (8123+38776)*(117818+38776) ) / nrow(testing)^2)
+```
 
 
 ## Questions: 
