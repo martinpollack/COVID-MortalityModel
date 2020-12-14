@@ -12,233 +12,57 @@ library(caret)
 library(pROC)
 ```
 
-## Read in data: 
+## Read in full dataset: 
 ```{r}
 mexico <- read.csv("~/Documents/STA310/COVID-MortalityModel/201130COVID19MEXICO.csv")
 dim(mexico)
 ```
 
-## Restrict to 18-85 Year olds who are citizens of Mexico
+## Restrict to 18-85 Year olds who are citizens of Mexico, only keep necessary columns
 ```{r}
 names(mexico)
 data <- filter(mexico, CLASIFICACION_FINAL == 3, EDAD >= 18 & EDAD <=85, NACIONALIDAD == 1)
-data <- select(data, c("FECHA_DEF", "NEUMONIA","INTUBADO", "SEXO", "EDAD","INDIGENA", "DIABETES", "EPOC", "ASMA", "INMUSUPR", "HIPERTENSION", "OTRA_COM","CARDIOVASCULAR", "OBESIDAD", "RENAL_CRONICA", "TABAQUISMO"))
+
+data <- select(data, c("FECHA_DEF", "SEXO", "EDAD","INDIGENA", "DIABETES", "EPOC", "ASMA", "INMUSUPR", "HIPERTENSION", "OTRA_COM","CARDIOVASCULAR", "OBESIDAD", "RENAL_CRONICA", "TABAQUISMO"))
 ```
 
-## Rename columns to english
+## Translate column names to English
 ```{r}
 names(data)
-colnames(data) <- c("DATE_DEATH", "PNEUMONIA", "INTUBATED", "SEX", "AGE", "INDIGENOUS", "DIABETES", "COPD", "ASTHMA", "IMMUNOSUPR", "HYPERTENSION", "OTHER_DIS", "CARDIOVASCULAR", "OBESITY", "CHRONIC_KIDNEY", "SMOKE")
+colnames(data) <- c("DATE_DEATH", "SEX", "AGE", "INDIGENOUS", "DIABETES", "COPD", "ASTHMA", "IMMUNOSUPR", "HYPERTENSION", "OTHER_DIS", "CARDIOVASCULAR", "OBESITY", "CHRONIC_KIDNEY", "SMOKE")
 ```
 
 
-## Make all 97, 98, 99 equal NA
+## Change categorical variables to be 0, 1, or Na
 ```{r}
-##### Pneumonia 
-# table(data$PNEUMONIA)
-#      1      2     99 
-# 169718 863127      9 
-data$PNEUMONIA <-  case_when(data$PNEUMONIA == 2 ~ 0, 
-                             data$PNEUMONIA == 1 ~ 1, 
-                             data$PNEUMONIA == 99 ~ NA_real_)
-# table(data$PNEUMONIA)
-#      0      1 
-# 863127 169718 
+# Change explanatory variables
+for (i in 2:14) {
+  data[,i] <- case_when(data[,i] == 2 ~ 0,
+                        data[,i] == 1 ~ 1,
+                        data[,i] == 97 ~ NA_real_,
+                        data[,i] == 98 ~ NA_real_,
+                        data[,i] == 99 ~ NA_real_)
+}
 
-##### Intubated 
-# table(data$INTUBATED)
-#      1      2     97     99 
-#  34897 187280 810087    590 
-data$INTUBATED <- case_when(data$INTUBATED == 2 ~ 0, 
-                            data$INTUBATED == 1 ~ 1, 
-                            data$INTUBATED == 97 ~ NA_real_, 
-                            data$INTUBATED == 99 ~ NA_real_)
-# table(data$INTUBATED)
-#      0      1 
-# 187280  34897 
-
-##### Sex
-# table(data$SEX)
-#      1      2 
-# 506915 525939 
-
-data$SEX <- case_when(data$SEX == 2 ~ 0, 
-                      data$SEX == 1 ~ 1)
-# table(data$SEX)
-#      0      1 
-# 525939 506915 
-
-##### Indigenous
-# table(data$INDIGENOUS)
-#      1      2     99 
-#  10839 988217  33798 
-data$INDIGENOUS <- case_when(data$INDIGENOUS == 2 ~ 0, 
-                             data$INDIGENOUS == 1 ~ 1, 
-                             data$INDIGENOUS == 99 ~ NA_real_)
-# table(data$INDIGENOUS)
-#      0      1 
-# 988217  10839 
-
-##### Diabetes
-# table(data$DIABETES)
-#      1      2     98 
-# 154788 874829   3237 
-
-data$DIABETES <- case_when(data$DIABETES == 1 ~ 1,
-                           data$DIABETES == 2 ~ 0, 
-                           data$DIABETES == 98 ~ NA_real_)
-# table(data$DIABETES)
-#      0      1 
-# 874829 154788 
-
-##### COPD
-# table(data$COPD)
-#     1       2      98 
-# 13137 1016784    2933 
-
-data$COPD <- case_when(data$COPD == 1 ~ 1, 
-                       data$COPD == 2 ~ 0, 
-                       data$COPD == 98 ~ NA_real_)
-# table(data$COPD)
-#       0       1 
-# 1016784   13137 
-
-##### Asthma 
-
-# table(data$ASTHMA)
-#       1       2      98 
-#   25442 1004514    2898 
-
-data$ASTHMA <- case_when(data$ASTHMA == 1 ~ 1, 
-                         data$ASTHMA == 2 ~ 0,
-                         data$ASTHMA == 98 ~ NA_real_)
-# table(data$ASTHMA)
-#       0       1 
-# 1004514   25442 
-
-##### Immunosuppression 
-# table(data$IMMUNOSUPR)
-#       1       2      98 
-#   10090 1019713    3051 
-
-data$IMMUNOSUPR <- case_when(data$IMMUNOSUPR == 1 ~ 1, 
-                             data$IMMUNOSUPR == 2 ~ 0, 
-                             data$IMMUNOSUPR == 98 ~ NA_real_)
-# table(data$IMMUNOSUPR)
-#       0       1 
-# 1019713   10090 
-
-##### Hypertension
-# table(data$HYPERTENSION)
-#      1      2     98 
-# 195826 833975   3053 
-data$HYPERTENSION <- case_when(data$HYPERTENSION == 1 ~ 1, 
-                               data$HYPERTENSION == 2 ~ 0, 
-                               data$HYPERTENSION == 98 ~ NA_real_)
-# table(data$HYPERTENSION)
-#      0      1 
-# 833975 195826 
-
-##### Other Diseases 
-
-# table(data$OTHER_DIS)
-#       1       2      98 
-#   23026 1004758    5070 
-
-data$OTHER_DIS <- case_when(data$OTHER_DIS == 2 ~ 0, 
-                            data$OTHER_DIS == 1 ~ 1, 
-                            data$OTHER_DIS == 98 ~ NA_real_)
-
-# table(data$OTHER_DIS)
-#       0       1 
-# 1004758   23026 
-
-##### Cardiovascular
-
-# table(data$CARDIOVASCULAR)
-#       1       2      98 
-#   18396 1011486    2972 
-
-data$CARDIOVASCULAR <- case_when(data$CARDIOVASCULAR == 1 ~ 1, 
-                                 data$CARDIOVASCULAR == 2 ~ 0, 
-                                 data$CARDIOVASCULAR == 98 ~ NA_real_)
-# table(data$CARDIOVASCULAR)
-#       0       1 
-# 1011486   18396 
-
-##### Obesity 
-
-# table(data$OBESITY)
-#      1      2     98 
-# 179465 850450   2939 
-
-data$OBESITY <- case_when(data$OBESITY == 1 ~ 1, 
-                          data$OBESITY == 2 ~ 0, 
-                          data$OBESITY == 98 ~ NA_real_)
-# table(data$OBESITY)
-#      0      1 
-# 850450 179465 
-
-##### Chronic kidney failure
-
-# table(data$CHRONIC_KIDNEY)
-#       1       2      98 
-#   18529 1011396    2929 
-
-data$CHRONIC_KIDNEY <- case_when(data$CHRONIC_KIDNEY == 1 ~ 1, 
-                                 data$CHRONIC_KIDNEY == 2 ~ 0, 
-                                 data$CHRONIC_KIDNEY == 98 ~ NA_real_)
-# table(data$CHRONIC_KIDNEY)
-#       0       1 
-# 1011396   18529 
-
-##### Smoke 
-# table(data$SMOKE)
-#      1      2     98 
-#  78662 951099   3093 
-
-data$SMOKE <- case_when(data$SMOKE == 1 ~ 1, 
-                        data$SMOKE == 2 ~ 0, 
-                        data$SMOKE == 98 ~ NA_real_)
-
-# table(data$SMOKE)
-#      0      1 
-# 951099  78662 
+# Change response variable
+data$DEATH <- ifelse(data$DATE_DEATH == "9999-99-99", 0, 1)
 ```
 
-## Add categorical variable for death 
-
+## Look at how many NA observations each unit has, use it to create NA/complete-observations datasets
 ```{r}
-data <- mutate(data, DEATH = ifelse(data$DATE_DEATH == "9999-99-99", 0, 1))
-# table(data$DEATH)
-#  0      1 
-# 935831  97023 
-```
-
-## Look at how many people responded NA to multiple explanatory variables 
-
-```{r}
-findNAdata <- data[-c(2, 3)]
-names(findNAdata)
-is.naData <- apply(findNAdata, MARGIN = 2, is.na)
-count.na <- apply(is.naData, MARGIN = 1, sum)
+count.na <- apply(is.na(data), MARGIN = 1, sum)
 table(count.na)
 ```
 
 ```{r}
 na.Dataset <- data[count.na > 0, ]
-full.dataset <- data[count.na == 0,]
+complete.dataset <- data[count.na == 0,]
 ```
-The proportions for all the variables in the NA dataset are highly similar to the proportions in the dataset with out any NA responses. We also found that interactions between multiple variables are also unaffected (i.e. Age and Death) by having or removing NAs. We conclude that the NA dataset is largely representative of the complete dataset, and thus by removing all rows with NA values for at least one explanatory variable we are not introducing substantial bias. (See NAexploration.Rmd for full analysis).
+The proportions for all the variables in the original dataset are highly similar to the proportions in the dataset with only complete observations. We also found that interactions between multiple variables are also unaffected (i.e. Age and Death) by having or removing NAs. Therefore, we conclude that the dataset with only complete observations is largely representative of the original dataset, and thus by removing all rows that have an NA value for at least one variable, we are not introducing substantial bias. (See NAexploration.Rmd for full analysis).
 
-## Remove all rows with at least one NA
+## Remove all rows with at least one NA for downstream analysis
 ```{r}
 data <- data[count.na==0,]
-```
-
-## Remove extra columns
-```{r}
-data <- data[,-(1:3)]
 ```
 
 ## Split data into testing and training set 
@@ -252,146 +76,51 @@ dim(training)
 dim(testing)
 ```
 
-## MODEL!!!!
+## Building the best model without interaction terms
+To start, we created a model with all of our 13 explanatory variables.
 ```{r}
 all_nointeractions <- glm(DEATH~., "binomial", training)
 summary(all_nointeractions)
-
-best_nointeractions <- glm(DEATH~.-CARDIOVASCULAR-INDIGENOUS-ASTHMA-SMOKE, "binomial", training)
-summary(best_nointeractions)
 ```
 
-## RESIDUALS!!!~~
+We see that most variables have very small p-values and thus are likely important in the model. However, there are four variables with p-values higher than the rest: INDIGENOUS, ASTHMA, CARDIOVASCULAR, and SMOKE. So, we created a model without these four variables and then used a drop-in-deviance test see if these four variables make a significant difference to the model. 
+
 ```{r}
-#might as well include all 4 (doensn't simplify model much, doesn't matter in or out)
+reduced_nointeractions <- glm(DEATH~.-CARDIOVASCULAR-INDIGENOUS-ASTHMA-SMOKE, "binomial", training)
+summary(reduced_nointeractions)
+
 full <-  all_nointeractions$deviance
-reduced <- best_nointeractions$deviance
+reduced <- reduced_nointeractions$deviance
 
 G <- reduced - full
-df <- best_nointeractions$df.residual - all_nointeractions$df.residual
+df <- reduced_nointeractions$df.residual - all_nointeractions$df.residual
 
 1-pchisq(G, df)
-
-#make interaction model, see how much that changes (use all interactions)
-#after we do it, see how many we can get rid of...
-#Focus on AOC curve, cross validation
-#In addition to drop in deviance test, do measures of fit 
-
-#statquest package 
-#don't look at residual plots 
-#Deviance plots kind of already did that 
-#Focus on what we have here--multiple explanatory variables (MODEL ASSESMENT )
-
-#Essentially same confusion matrix, g statistic, pick smallest 
-#else use 
-#AOC, ROC Curves, threshold values, confusion matrix
-#You want most area under the curve, pick top left value
-#TPP and FPP (true positive/false positive)
-
-#Put people in categories of risk based on age. 
-#Set meeting for Monday, maybe also Friday. Free after 10:30.  make another for 
-
-
-
-devResids <- residuals(reduced, type="deviance")
-pearResids <- residuals(reduced, type="pearson")
-trainPlotData <- mutate(training, "pearson" = pearResids, "deviance" = devResids)
-
-# Residual plots for each explanatory variable
-ggplot(trainPlotData, aes(x = AGE, y = pearson)) + 
-  geom_point(alpha=0.1)+
-  labs(title="Residual vs AGE")
-
-ggplot(trainPlotData, aes(x = SEX, y = pearson)) + 
-  geom_point(alpha=0.1) +
-  labs(title="Residual vs SEX")
-
-ggplot(trainPlotData, aes(x = CHRONIC_KIDNEY, y = pearson)) + 
-  geom_point(alpha=0.1) +
-  labs(title="Residual vs CHRONIC_KIDNEY")  
-
-ggplot(trainPlotData, aes(x = COPD, y = pearson)) + 
-  geom_point(alpha=0.1) +
-  labs(title="Residual vs COPD")  
-
-ggplot(trainPlotData, aes(x = IMMUNOSUPR, y = pearson)) + 
-  geom_point(alpha=0.1) +
-  labs(title="Residual vs IMMUNOSUPR")
-
-ggplot(trainPlotData, aes(x = OBESITY, y = pearson)) + 
-  geom_point(alpha=0.1) +
-  labs(title="Residual vs OBESITY")
-
-ggplot(trainPlotData, aes(x = DIABETES, y = pearson)) + 
-  geom_point(alpha=0.1) +
-  labs(title="Residual vs DIABETES")
-
-ggplot(trainPlotData, aes(x = HYPERTENSION, y = pearson)) + 
-  geom_point(alpha=0.1) +
-  labs(title="Residual vs HYPERTENSION")
-
-ggplot(trainPlotData, aes(x = OTHER_DIS, y = pearson)) + 
-  geom_point(alpha=0.1) +
-  labs(title="Residual vs OTHER_DIS")
-
-# Residual vs fitted value
-ggplot(trainPlotData, aes(x = reduced$fitted.values, y = deviance)) + 
-  geom_point(alpha=0.1) +
-  labs(title="Residual vs fitted values")
-
-# Residual vs order
-ggplot(trainPlotData, aes(x = 1:nrow(training), y = pearson)) + 
-  geom_point(alpha=0.1) +
-  labs(title="Residual vs order")
-
-hist(pearResids)
-plot(training$AGE, devResids)
-
-median(pearResids[training$SEX == 0])
-median(pearResids[training$SEX == 1])
-
 ```
 
-## ROC
+Here, we see that in the reduced model all explanatory variables have a p-value less than $2e^{-16}$. However, our drop-in-deviance test yields a p-value of 5.473951e-08, meaning we have evidence to reject the null hypothesis and conclude that at least one of the four variables we removed is important. Thus, we decide to include all of our explanatory variables in our model.
+
+We also then used an ROC curve to assess the performance of our model with all explanatory variables. The AUC and ideal threshold to separate the people who died from those who survived based on the predicted probability are also included. This ideal threshold was found by finding the point where the sum of the sensitivity and specificity was highest.
+
 ```{r}
-roc_all_nointeractions <- roc(response = training$DEATH, predictor=all_nointeractions$fitted.values,ci=F, plot=T, print.thres=T, print.auc=T)
-
-data.frame(TP = roc_all_nointeractions$sensitivities, FP = 1 - roc_all_nointeractions$specificities, thresh = roc_all_nointeractions$thresholds)[which(round(roc_all_nointeractions$sensitivities, 3) == 0.826),]
-which(round(roc_all_nointeractions$sensitivities, 3) == 0.826)
-#confusion counts #predict to die versus #actually die (little 2x2 table)
-#they should agree as much as possible 
-#probability > 0.5, maybe try 0.8
-#calculate area under curve for both
-#compare these things for interaction model and new interaction model along with G statistic
-#caret can do all things automatically for us 
-
-#odds of success based on a certain age
-#DEFINETELY can interpret odds ratio with age (graph, survival curve)
-#prob survival, log odds with regression coef. (probability of survival)
-#Pearson residual 
-#could compare by gender 
-#any diease versus no diesase 
-
-# test_prediction <- predict(reduced, testing)
-# roc(response = testing$DEATH, predictor=test_prediction,ci=F, plot=T)
+roc_all_nointeractions <- roc(response = training$DEATH, predictor=all_nointeractions$fitted.values,ci=F, plot=T, print.thres=T, print.auc=T, quiet = T, main="ROC Curve: All variables, no interaction terms")
 ```
 
-## Begin! 
+## Investigating interaction terms 
 
 ```{r}
 all_winteraction <- glm(DEATH~(.)^2, "binomial", training)
-# summary(interaction_model)
+summary(all_winteraction)
 
 ## Drop - in - deviance test
-G <-  all_nointeractions$deviance - interaction_model$deviance 
-df <- all_nointeractions$df.residual - interaction_model$df.residual
+G <-  all_nointeractions$deviance - all_winteraction$deviance 
+df <- all_nointeractions$df.residual - all_winteraction$df.residual
 1 - pchisq(G, df)
 
 ## ROC
-roc(response = training$DEATH, predictor=interaction_model$fitted.values,ci=F, plot=T)
-#0.8562
+roc(response = training$DEATH, predictor=all_winteraction$fitted.values,ci=F, plot=T)
 
-0.05 / (interaction_model$df.null - interaction_model$df.residual)
+
 
 ## Reduced interaction
 #We used a p-value cutoff of 0.0005 for significance (Adjusted Bonferroni)
@@ -400,38 +129,51 @@ interaction_reduced <- glm(data = training, DEATH ~ SEX + AGE + INDIGENOUS + DIA
 # summary(interaction_reduced)
 
 #Drop in deviance compared to no interactions 
-G <-  full_model$deviance - interaction_reduced$deviance
-df <- full_model$df.residual - interaction_reduced$df.residual
+G <-  all_nointeractions$deviance - interaction_reduced$deviance
+df <- all_nointeractions$df.residual - interaction_reduced$df.residual
 1 - pchisq(G, df)
 
 
 #Drop in deviance compared to ALL interactions
-G <-  interaction_reduced$deviance - interaction_model$deviance
-df <- interaction_reduced$df.residual - interaction_model$df.residual
+G <-  interaction_reduced$deviance - all_winteraction$deviance
+df <- interaction_reduced$df.residual - all_winteraction$df.residual
 1 - pchisq(G, df)
 
 #at least one of interactions we took out is significant 
 
 roc_interaction_reduced <- roc(response = training$DEATH, predictor=interaction_reduced$fitted.values,ci=F, plot=T, print.thres=T, print.auc=T)
 
-data.frame(TP = roc_interaction_reduced$sensitivities, FP = 1 - roc_all_nointeractions$specificities, thresh = roc_all_nointeractions$thresholds)[which(round(roc_all_nointeractions$sensitivities, 3) == 0.826),]
-which(round(roc_all_nointeractions$sensitivities, 3) == 0.826)
-#0.8559
 
-#0.8538 Original Full model with no interaction terms! 
+
+
+#AUC no interactions:   0.8538
+
+#AUC some interactions: 0.8559
+
+# AUC all interactions: 0.8562
 ```
 
 ## CONFUSION MATRICES
 ```{r}
-predicted_interaction_reduced_bestcutoff <- ifelse(interaction_reduced$fitted.values > 0.091, 1, 0)
-table(predicted_interaction_reduced_bestcutoff, training$DEATH)
+#make confusion matrix for reduced interaction model using ideal threshold
+predicted_interaction_reduced <- ifelse(interaction_reduced$fitted.values > 0.091, 1, 0)
+table(predicted_interaction_reduced, training$DEATH)
 
-predicted_interaction_reduced_halfcutoff <- ifelse(interaction_reduced$fitted.values > 0.5, 1, 0)
-table(predicted_interaction_reduced_halfcutoff, training$DEATH)
+# accuracy for reduced interaction
+(331890+38938) / nrow(training)
+
+
+
+# make confusion matrix for all-interactions model using ideal threshold
+predicted_all_winteraction <- ifelse(all_winteraction$fitted.values > 0.091, 1, 0)
+table(predicted_all_winteraction, training$DEATH)
+
+# accuracy for all-interactions
+(332356+38856) / nrow(training)
 ```
 
 
-## PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS (everybody!)
+## PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS (everybody!)
 
 ```{r}
 
@@ -460,23 +202,3 @@ table(predicted_testing_bestcutoff, testing$DEATH)
 
 kappa_testing <- ( (331514+38776) / nrow(testing) - ( (331514+117818)*(331514+8123) + (8123+38776)*(117818+38776) ) / nrow(testing)^2) / ( 1 - ( (331514+117818)*(331514+8123) + (8123+38776)*(117818+38776) ) / nrow(testing)^2)
 ```
-
-
-## Questions: 
-
-1. Everything significant at 0.05 level except CARDIOVASCULAR. Should we just take this one out, or the four out that didn't have extremely tiny p-values (i.e. CARDIOVASCULAR, ASTHMA, INDIGENOUS, SMOKE), or take out even more variables?
-2. We have so many significant p-values. But is this just because we have a huge sample size, so our SEs are small? Would we overfit the model by including all but the four mentioned above?
-3. Our residuals tend to be heavily right-skewed. This means that there are a lot more people who died that we didn't expect to die compared to people who survived that we didn't expect to survive. Does this mean that assumptions are violated? How do we fix this?
-
-
-## DO list: 
-
-1. Model with HELLLAAAAAAAAAAAA interaction terms. Use all terms :( 
-2. See if we can take some out 
-3. Compare AOC, G statistic, see if improvement is significant. 
-4. Find smallest possible model that gives us similar AOC, G-statistic 
-5. Once we have our model, do fun stuff! Plot age versus prob survival
-  - Odds ratio/Probability changes with different explanatory variables 
-
-
-
