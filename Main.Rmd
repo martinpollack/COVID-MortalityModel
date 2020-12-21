@@ -1,5 +1,6 @@
 ---
 title: "Data Cleaning"
+author: "Sarina Kopf and Martin Pollack"
 output:
   word_document: default
   html_document: default
@@ -7,9 +8,12 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
 library(dplyr)
 library(caret)
 library(pROC)
+library(stringr)
+library(ggpubr)
 ```
 
 ## Read in full dataset: 
@@ -24,11 +28,12 @@ dim(mexico)
 data <- filter(mexico, CLASIFICACION_FINAL == 3, EDAD >= 18 & EDAD <=85, NACIONALIDAD == 1)
 
 data <- select(data, c("FECHA_DEF", "SEXO", "EDAD","INDIGENA", "DIABETES", "EPOC", "ASMA", "INMUSUPR", "HIPERTENSION", "OTRA_COM","CARDIOVASCULAR", "OBESIDAD", "RENAL_CRONICA", "TABAQUISMO"))
+
+dim(data)
 ```
 
 ## Translate column names to English
 ```{r}
-names(data)
 colnames(data) <- c("DATE_DEATH", "SEX", "AGE", "INDIGENOUS", "DIABETES", "COPD", "ASTHMA", "IMMUNOSUPR", "HYPERTENSION", "OTHER_DIS", "CARDIOVASCULAR", "OBESITY", "CHRONIC_KIDNEY", "SMOKE")
 ```
 
@@ -36,7 +41,7 @@ colnames(data) <- c("DATE_DEATH", "SEX", "AGE", "INDIGENOUS", "DIABETES", "COPD"
 ## Change categorical variables to be 0, 1, or Na
 ```{r}
 # Change explanatory variables
-for (i in 2:14) {
+for (i in c(2, 4:14)) {
   data[,i] <- case_when(data[,i] == 2 ~ 0,
                         data[,i] == 1 ~ 1,
                         data[,i] == 97 ~ NA_real_,
@@ -47,6 +52,8 @@ for (i in 2:14) {
 # Change response variable
 data$DEATH <- ifelse(data$DATE_DEATH == "9999-99-99", 0, 1)
 data <- data[,-1]
+
+names(data)
 ```
 
 ## Look at how many NA observations each unit has, use it to create NA/complete-observations datasets
@@ -64,6 +71,7 @@ The proportions for all the variables in the original dataset are highly similar
 ## Remove all rows with at least one NA for downstream analysis
 ```{r}
 data <- data[count.na==0,]
+dim(data)
 ```
 
 ## Split data into testing and training set 
@@ -84,7 +92,7 @@ all_nointeractions <- glm(DEATH~., "binomial", training)
 summary(all_nointeractions)
 ```
 
-We see that most variables have very small p-values and thus are likely important in the model. However, there are four variables with p-values higher than the rest: INDIGENOUS, ASTHMA, CARDIOVASCULAR, and SMOKE. So, we created a model without these four variables and then used a drop-in-deviance test see if these four variables make a significant difference to the model. 
+We see that most variables have very small p-values and thus are likely important in the model. However, there are four variables with p-values higher than the rest: INDIGENOUS, ASTHMA, CARDIOVASCULAR, and SMOKE. So, we created a model without these four variables and then used a drop-in-deviance test see if these at least one of the four variables is important in the model. 
 
 ```{r}
 reduced_nointeractions <- glm(DEATH~.-CARDIOVASCULAR-INDIGENOUS-ASTHMA-SMOKE, "binomial", training)
@@ -101,14 +109,26 @@ df <- reduced_nointeractions$df.residual - all_nointeractions$df.residual
 
 Here, we see that in the reduced model all explanatory variables have a p-value less than $2e^{-16}$. However, our drop-in-deviance test yields a p-value of 5.473951e-08, meaning we have evidence to reject the null hypothesis and conclude that at least one of the four variables we removed is important. Thus, we decide to include all of our explanatory variables in our model.
 
-We also then used an ROC curve to assess the performance of our model with all explanatory variables. The AUC and ideal threshold to separate the people who died from those who survived based on the predicted probability are also included. This ideal threshold was found by finding the point where the sum of the sensitivity and specificity was highest.
+We then used an ROC curve to assess the performance of our model with all explanatory variables. The AUC and ideal threshold to separate the people who died from those who survived based on the predicted probability are also included. This ideal threshold was found by finding the point where the sum of the sensitivity and specificity was highest. We also then used this ideal threshold to construct a confusion matrix and calculating the accuracy of our model.
 
-```{r}
-roc_all_nointeractions <- roc(response = training$DEATH, predictor=all_nointeractions$fitted.values,ci=F, plot=T, print.thres=T, print.auc=T, quiet = T, main="ROC Curve: All variables, no interaction terms")
+```{r fig.height=8, fig.width=6}
+# ROC no interactions
+roc_all_nointeractions <- roc(response = training$DEATH, predictor=all_nointeractions$fitted.values,ci=F, plot=T, print.thres=F, quiet = T, main="ROC Curve: No interactions")
+
+# AUC no interactions
+roc_all_nointeractions$auc
+
+#make confusion matrix for no interaction model using it's ideal threshold
+predicted_all_nointeraction <- ifelse(all_nointeractions$fitted.values > 0.083, 1, 0)
+table(predicted_all_nointeraction, training$DEATH)
+
+# accuracy for reduced interaction
+(332261+38751) / nrow(training)
 ```
 
 ## Investigating interaction terms 
 
+We started by including all interaction terms in our model. To see if it was better than our model with all explanatory variables but no interactions, we conducted a drop-in-deviance test.
 ```{r}
 all_winteraction <- glm(DEATH~(.)^2, "binomial", training)
 summary(all_winteraction)
@@ -117,34 +137,78 @@ summary(all_winteraction)
 G <-  all_nointeractions$deviance - all_winteraction$deviance 
 df <- all_nointeractions$df.residual - all_winteraction$df.residual
 1 - pchisq(G, df)
+```
 
-## ROC
-roc(response = training$DEATH, predictor=all_winteraction$fitted.values,ci=F, plot=T)
+We get an extremely small p-value for our drop-in-deviance test, meaning at least one of our interaction terms is important in the model. To further evaluate our model with all interaction terms we create an ROC curve and confusion matrix with the ideal threshold, as well as calculating the AUC and accuracy.
+
+```{r}
+# ROC all interactions
+roc_all_winteractions <- roc(response = training$DEATH, predictor=all_winteraction$fitted.values,ci=F, plot=T, print.thres=T, main="ROC Curve: All interactions")
 
 
+# AUC all interactions
+roc_all_winteractions$auc
 
+# make confusion matrix for all-interactions model using ideal threshold
+predicted_all_winteraction <- ifelse(all_winteraction$fitted.values > 0.095, 1, 0)
+table(predicted_all_winteraction, training$DEATH)
+
+# accuracy for all-interactions
+(335664+38542) / nrow(training)
+```
+
+Looking at these results above, we get mixed results when we compare our model with no interaction terms to the one with all interaction terms. By adding all interaction terms our model has gotten a lot more complicated as we now have 91 terms versus just the original 13 terms. But the drop-in-deviance test yielded a significant p-value, meaning at least one interaction term is significant, and our AUC has increased by about 0.004 from 0.8539 to 0.8562. Our accuracy has also increased from 0.7476584 to 0.7540949 using each model's ideal threshold; however, of the people who actually died, we correctly predicted their outcome less of the time. It seems like we would rather correctly predict a person's outcome when they are going to die compared to when they will survive. This is cause if we incorrectly predict that someone will survive, we may not give them as good of a treatment, compounding the problem. But if we incorrectly predict that someone will die, the patient will just get extra care and attention, allowing them to recover faster.
+
+Using all this information, we wondered if only including certain interaction terms would be a good compromise between the model with no interaction terms that is simple and is better at predicting that someone will die and the model with all interaction terms which has a lower deviance as well as a larger AUC and overall accuracy. We decided which interactions to keep by looking at the p-values for the terms in the model with all interactions. Since we had so many terms in the model and were calculating so many p-values, we decided to use a Bonferonni cut-off of $0.05/91\approx 0.00055$ to determine the interaction terms to keep. Using this method to determine our significance threshold was also chosen because we would like to minimize Type I error and care less about Type II error: if we include an interaction term, we want to make sure it is significant, and it is acceptable to miss a few significant terms since there are already so many.
+
+Doing this, we create a reduced interaction model only including the interaction terms that had p-values less than 0.00055 in the model with all interaction terms:
+
+```{r}
 ## Reduced interaction
-#We used a p-value cutoff of 0.0005 for significance (Adjusted Bonferroni)
+
 interaction_reduced <- glm(data = training, DEATH ~ SEX + AGE + INDIGENOUS + DIABETES + COPD + ASTHMA + IMMUNOSUPR + HYPERTENSION + OTHER_DIS + CARDIOVASCULAR + OBESITY + CHRONIC_KIDNEY + SMOKE + SEX:AGE + SEX:DIABETES + SEX:HYPERTENSION + SEX:CHRONIC_KIDNEY + SEX:SMOKE + AGE:INDIGENOUS + AGE:DIABETES + AGE:COPD + AGE:IMMUNOSUPR + AGE:HYPERTENSION + AGE:OTHER_DIS + AGE:CARDIOVASCULAR + AGE:OBESITY + AGE:CHRONIC_KIDNEY + AGE:SMOKE + DIABETES:OBESITY + IMMUNOSUPR:CHRONIC_KIDNEY + HYPERTENSION:OBESITY + OTHER_DIS:OBESITY , family = "binomial")
 
-# summary(interaction_reduced)
+summary(interaction_reduced)
 
+```
+
+We then conducted two drop-in-deviance tests, the first comparing the model with no interaction terms to the one with some and another comparing the model with all interaction terms to the one with some. This would give us some idea of how important the interaction terms are that we included and did not include in the reduced model.
+```{r}
 #Drop in deviance of interaction reduced compared to no interactions 
 G <-  all_nointeractions$deviance - interaction_reduced$deviance
 df <- all_nointeractions$df.residual - interaction_reduced$df.residual
+
+G
 1 - pchisq(G, df)
 
 
 #Drop in deviance of interaction reduced compared to ALL interactions
 G <-  interaction_reduced$deviance - all_winteraction$deviance
 df <- interaction_reduced$df.residual - all_winteraction$df.residual
+
+G
 1 - pchisq(G, df)
 
-#at least one of interactions we took out is significant 
+```
 
-roc_interaction_reduced <- roc(response = training$DEATH, predictor=interaction_reduced$fitted.values,ci=F, plot=T, print.thres=T, print.auc=T)
+For both drop-in-deviance tests we get a p-value that is incredibly small. This would mean that the interaction terms included in the reduced model are significant and should be included in the model with no interaction terms, but we should also include the interaction terms we left out as they are also significant. However, looking at the G-statistics of the two tests, the one comparing no to some interactions is an order of magnitude larger than the one comparing some to all interactions. This shows that the change in deviance is a lot bigger when we go from zero to 19 interaction terms than from 19 to 91 interaction terms. Since adding the additional 78 interaction terms did not increase the G-statistic nearly as much as adding the initial 19, we concluded that using all interaction terms is not worth it given the massive increase in the complexity of our model.
+
+This finding, that adding all interaction terms is not worth it given the more complicated model, can also be seen in terms of AUC, confusion matrices, and accuracy.
+
+```{r}
+# ROC certain interactions
+roc_interaction_reduced <- roc(response = training$DEATH, predictor=interaction_reduced$fitted.values,ci=F, plot=T, print.thres=T, main="ROC Curve: Certain interactions")
+
+# AUC certain interactions
+roc_interaction_reduced$auc
 
 
+#confusion matrix for reduced interaction model using its ideal threshold
+predicted_interaction_reduced <- ifelse(interaction_reduced$fitted.values > 0.091, 1, 0)
+table(predicted_interaction_reduced, training$DEATH)
+
+# accuracy for reduced interaction
+(331890+38938) / nrow(training)
 
 
 #AUC no interactions:   0.8538
@@ -154,41 +218,17 @@ roc_interaction_reduced <- roc(response = training$DEATH, predictor=interaction_
 # AUC all interactions: 0.8562
 ```
 
-## CONFUSION MATRICES
-```{r}
-#make confusion matrix for no interaction model using ideal threshold
-predicted_all_nointeraction <- ifelse(all_nointeractions$fitted.values > 0.083, 1, 0)
-table(predicted_all_nointeraction, training$DEATH)
+Using the reduced interaction model, the AUC is 0.8559. Thus, going from no to some interactions are AUC increased by 0.002 from 0.8539 to 0.8559, but then going from some to all interactions the AUC only increases by 0.0003 from 0.8559 to 0.8562. So most of our improvement in AUC from interactions can be achieved by just including the 19 interaction terms in our reduced interaction model. Then, although the overall accuracy of our reduced interaction model is lower than both of the other two models we created, we see that this model correctly predicts the outcome for people who actually died the most often. As previously stated, it seems more important to be able to recognize when someone is going to die compared to when they will survive, and our reduced interaction model does this the best.
 
-# accuracy for reduced interaction
-(339808+37886) / nrow(training)
+Overall, our reduced interaction model seems to be ideal. Looking at G statistics and AUC values, most of the improvements that result from adding interaction terms can be captured in just the 19 interaction terms we added. Also, by not adding all interaction terms our model is simpler and we are more likely to correctly predict that someone will die, which we find more important than correctly predicting that someone will survive.
+
+We now use our reduced interaction model for downstream analysis and looking at the effects of our explanatory variables on death due to COVID-19.
 
 
 
-#make confusion matrix for reduced interaction model using ideal threshold
-predicted_interaction_reduced <- ifelse(interaction_reduced$fitted.values > 0.091, 1, 0)
-table(predicted_interaction_reduced, training$DEATH)
-
-# accuracy for reduced interaction
-(331890+38938) / nrow(training)
-
-
-
-# make confusion matrix for all-interactions model using ideal threshold
-predicted_all_winteraction <- ifelse(all_winteraction$fitted.values > 0.091, 1, 0)
-table(predicted_all_winteraction, training$DEATH)
-
-# accuracy for all-interactions
-(332356+38856) / nrow(training)
-```
-
-
-## PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS PLOTS (everybody!)
-
-```{r}
-summary(interaction_reduced)
-
-plot_categorical <- function(variable) {
+## Use our final model to plot relationships between explanatory variables and probability of dying
+```{r fig.height=6, fig.width=6}
+plot_categorical <- function(variable, plot_title) {
   plot_data <- expand.grid(AGE = 18:85, SEX=0:1, indicator_variable=0:1)
   
   coefficient <- summary(interaction_reduced)$coefficients[variable,1]
@@ -210,29 +250,78 @@ plot_categorical <- function(variable) {
                         exp(-7.0919880-1.1649522*SEX+0.0888716*AGE+coefficient*indicator_variable+0.0072930*SEX*AGE+sex_interaction*SEX*indicator_variable+age_interaction*AGE*indicator_variable) / (1+exp(-7.0919880-1.1649522*SEX+0.0888716*AGE+coefficient*indicator_variable+0.0072930*SEX*AGE+sex_interaction*SEX*indicator_variable+age_interaction*AGE*indicator_variable)))
 
   print(ggplot(plot_data, aes(x=AGE, y=Probability_Death, color=as.factor(SEX))) +
-  geom_line(aes(linetype=as.factor(plot_data$indicator_variable))) +
-    geom_hline(yintercept = 0.091)+
-  labs(color="Sex", linetype=variable))
+          geom_line(aes(linetype=as.factor(plot_data$indicator_variable))) +
+          scale_color_discrete(name="Sex", labels=c("M", "F")) +
+          scale_linetype_discrete(name="Indicator variable", labels=c("No", "Yes")) +
+          ylim(c(-0.01, 0.715)) +
+          labs(title=plot_title, y="", x="Age"))
 }
 
 for (col in colnames(training)[3:13]) {
   plot_categorical(col)
 }
+plot_categorical("OTHER_DIS", "Other Disease")
+
+# kidney <- plot_categorical("CHRONIC_KIDNEY")
+# obesity <- plot_categorical("OBESITY")
+# cvd <- plot_categorical("CARDIOVASCULAR")
+# smoke <- plot_categorical("SMOKE")
+# 
+# annotate_figure(ggarrange(kidney, obesity, cvd, smoke, ncol=4, nrow=1, common.legend = T, align="hv", labels=c("A)", "B)", "C)", "D)")),
+#                 left="Predicted Probability of Dying")
 ```
 
 
 
-## Evaluating fit for testing data set
+## Evaluate fit for testing data set
+### Use no-interaction model
+```{r}
+predicted_testing <- predict(all_nointeractions, newdata = testing, type = "response")
+
+# Testing: ROC no interaction 
+roc_testing <- roc(response = testing$DEATH, predictor=predicted_testing, ci=F, plot=T, print.thres=T, main="ROC Curve: No interactions")
+
+# Testing: AUC no interaction
+roc_testing$auc
+
+# confusion matrix
+predicted_testing_bestcutoff <- ifelse(predicted_testing > 0.081, 1, 0)
+table(predicted_testing_bestcutoff, testing$DEATH)
+
+# accuracy
+(328054+39010) / nrow(testing)
+```
+### Use all-interaction model
+```{r}
+predicted_testing <- predict(all_winteraction, newdata = testing, type = "response")
+
+# Testing: ROC all interactions
+roc_testing <- roc(response = testing$DEATH, predictor=predicted_testing, ci=F, plot=T, print.thres=T, main="ROC Curve: All interactions")
+
+# Testing: AUC all interactions
+roc_testing$auc
+
+# confusion matrix
+predicted_testing_bestcutoff <- ifelse(predicted_testing > 0.084, 1, 0)
+table(predicted_testing_bestcutoff, testing$DEATH)
+
+# accuracy
+(327214+39248) / nrow(testing)
+```
+### Use reduced interaction model
 ```{r}
 predicted_testing <- predict(interaction_reduced, newdata = testing, type = "response")
 
-roc_testing <- roc(response = testing$DEATH, predictor=predicted_testing,ci=F, plot=T, print.thres=T, print.auc=T)
+# Testing: ROC reduced interaction
+roc_testing <- roc(response = testing$DEATH, predictor=predicted_testing, ci=F, plot=T, print.thres=T, main="ROC Curve: Certain interactions")
 
+# Testing: AUC reduced interaction
+roc_testing$auc
+
+# confusion matrix
 predicted_testing_bestcutoff <- ifelse(predicted_testing > 0.084, 1, 0)
 table(predicted_testing_bestcutoff, testing$DEATH)
 
 # accuracy
 (325363+39456) / nrow(testing)
-
-kappa_testing <- ( (331514+38776) / nrow(testing) - ( (331514+117818)*(331514+8123) + (8123+38776)*(117818+38776) ) / nrow(testing)^2) / ( 1 - ( (331514+117818)*(331514+8123) + (8123+38776)*(117818+38776) ) / nrow(testing)^2)
 ```
